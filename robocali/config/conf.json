@@ -1,0 +1,20 @@
+[
+    {
+        "name": "port",
+        "val": "/dev/ttyUSB0",
+        "dtype": "str",
+        "unit": "n/a",
+        "desc": "port name"
+    },
+    {
+	"name": "axis_labels",
+        "val": {
+		"x": "62150",
+		"y": "62149",
+		"z": "62151"
+	},
+        "dtype": "dict",
+        "unit": "n/a",
+        "desc": "axis serial numbers for x, y, and z"
+    }
+]
