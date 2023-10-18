@@ -94,46 +94,48 @@ async def parse(input_: str):
 
 def main():
     bindings = KeyBindings()
+    big_dist = 3
+    small_dist = 0.1
 
     @bindings.add("c-w")
     async def _(event):
         try:
-            await move(axis="y", distance=0.5)
+            await move(axis="y", distance=big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
     @bindings.add("c-s")
     async def _(event):
         try:
-            await move(axis="y", distance=-0.5)
+            await move(axis="y", distance=-big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
     @bindings.add("c-a")
     async def _(event):
         try:
-            await move(axis="x", distance=0.5)
+            await move(axis="x", distance=big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
     @bindings.add("c-d")
     async def _(event):
         try:
-            await move(axis="x", distance=-0.5)
+            await move(axis="x", distance=-big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
     @bindings.add("c-q")
     async def _(event):
         try:
-            await move(axis="z", distance=0.5)
+            await move(axis="z", distance=big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
     @bindings.add("c-e")
     async def _(event):
         try:
-            await move(axis="z", distance=-0.5)
+            await move(axis="z", distance=-big_dist)
         except asyncio.CancelledError:
             print("Prompt terminated before we completed.")
 
