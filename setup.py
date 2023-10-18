@@ -9,11 +9,12 @@ setup(
         'click',
         'pyserial',
         'zaber_motion',
-        'pynput',
+        'prompt_toolkit',
+        'asyncio',
     ],
     entry_points={
         'console_scripts': [
-            'robocali = robocali.main:cli',
+            'robocali = robocali.main:main',
         ],
     },
 )

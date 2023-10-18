@@ -1,23 +1,39 @@
 from zaber_motion import Units
 from zaber_motion.ascii import Connection
 from . import config as conf
-import click
+from .CaliStage import CaliStage as CaliStage
 import serial.tools.list_ports
 from os import environ as env
-from pynput.keyboard import Listener
+import os.path
+import asyncio
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.shortcuts import set_title
+from prompt_toolkit.application import in_terminal, run_in_terminal
+from prompt_toolkit.key_binding import KeyBindings
 
 
-def serial_ports(app_cls):
+cs = None
+
+
+def serial_ports():
     ports = serial.tools.list_ports.comports()
-    con_port = app_cls.cali_stage.port
+    try:
+        con_ports = env["PORTS"].split(',')
+    except KeyError:
+        con_ports = []
     plist = []
     i=1
     for port, desc, _ in sorted(ports):
         slist = [i, port, desc]
         con = " "
         try:
-            if con_port in port:
-                con = "*"
+            for con_port in con_ports:
+                if con_port in port:
+                    con = "*"
+                    break
         except TypeError:
             pass
         i = i+1
@@ -26,152 +42,114 @@ def serial_ports(app_cls):
     return plist
 
 
-def key_control(cali):
-    raise NotImplementedError
-    #TODO: Just fuck with this til it works, something is up with the library.
-    dist = 5
-    x_axis = cali.axes['x'].get_axis(1)
-    y_axis = cali.axes['y'].get_axis(1)
-    z_axis = cali.axes['z'].get_axis(1)
-    def on_press(key):
-        print('{0} was entered'.format(key))
-        #match str(key):
-            #case 'w':
-            #    move_axis(y_axis, dist)
-            #case 's':
-            #    move_axis(y_axis, -1*dist)
-            #case 'a':
-            #    move_axis(x_axis, -1*dist)
-            #case 'd':
-            #    move_axis(x_axis, -1*dist)
-            #case 'q':
-            #    move_axis(z_axis, -1*dist)
-            #case 'e':
-            #    move_axis(z_axis, -1*dist)
-            #case _:
-            #    click.echo('invalid input {}'.format(key))
-    with Listener(on_press=on_press) as listener:
-        print(1)
-        listener.join()
-
-
-def z_initiate(app, port):
-    if port:
-        pass
-    elif 'Z_PORT' in env:
-        port = env['Z_PORT']
-    else:
-        port = conf.getval('port')
-    cali = app.cali_stage
-    cali.open(port)
-    env['Z_PORT'] = cali.port
-    return cali
-
-
-def move_axis(axis, dir_mm, abs=False):
-    if abs:
-        axis.move_absolute(dir_mm, Units.LENGTH_MILLIMETRES)
-    else:
-        axis.move_relative(dir_mm, Units.LENGTH_MILLIMETRES)
-
-
-class CaliStage(object):
-    def __init__(self):
-        self.__axis_labels = conf.getval('axis_labels')
-        self.__port = None
-        self.__axes = {}
-        self.__connection = None
-
-    def open(self, port):
-        self.__port = port
-        self.__connection = Connection.open_serial_port(port)
-        self.__connection.enable_alerts()
-        device_list = self.__connection.detect_devices()
-        for k, sn in self.__axis_labels.items():
-            for axis in device_list:
-                if sn in axis.__repr__():
-                    self.__axes[k] = axis
-
-    def close(self):
-        self.__connection.close()
-        self.__port = None
-
-    def __bool__():
-        if self.__axes and self.__connection:
-            return True
-        else:
-            return False
-
-    @property
-    def axes(self):
-        return self.__axes
-
-    @property
-    def port(self):
-        return self.__port
-
-
-class App(object):
-    def __init__(self):
-        self.__cali_stage = CaliStage()
-
-    @property
-    def cali_stage(self):
-        return self.__cali_stage
-
-
-pass_app = click.make_pass_decorator(App, ensure=True)
-valid_ax = ['x', 'y', 'z']
-
-@click.group
-@click.option('--debug/--no-debug', default=False,
-              envvar='CALI_DEBUG')
-@click.pass_context
-def cli(ctx, debug):
-    ctx.obj = App()
-
-
-@cli.command
-@click.argument('port', default='')
-@click.option('-k', '--key/--no-key', default=False)
-@click.option('-h', '--home/--no-home', default=False)
-@click.option('-a', '--axis', default='')
-@click.option('-d', '--distance', default=0)
-@click.option('--abs/--no-abs', default=False)
-@pass_app
-def move(app, port: str, key: bool, axis: str,
-         distance: float, home: bool, abs: bool):
-    cali = z_initiate(app, port)
-    if key:
-        key_control(cali)
-    elif axis and home:
-        axis_obj = cali.axes[axis].get_axis(1)
-        axis_obj.home()
+async def move(axis: str = "", distance: float = 0, home: bool = False, 
+         abs: bool = False):
+    global cs
+    cali = cs
+    if axis and home:
+        axis_obj = cali.axes[axis].get_axis(1).home()
     elif home:
         [ax.get_axis(1).home() for ax in cali.axes.values()]
     elif axis:
-        if axis not in valid_ax:
-            raise IOError("axis can only be {} not {}".format(valid_ax, axis))
-        elif distance == 0:
-            raise IOError("specify distance with -d")
-        axis_obj = cali.axes[axis].get_axis(1)
-        move_axis(axis_obj, distance, abs=abs)
+        if distance == 0:
+            print("specify distance with -d")
+            return
+        try:
+            await cali.move_axis(axis, distance, abs=abs)
+        except ValueError:
+            print(f"axis label {axis} is not valid")
+            return
 
 
-@cli.command
-@click.argument('port', default='')
-@pass_app
-def disconnect(app, port: str):
-    app.cali_stage.close()
+async def parse(input_: str):
+    global cs
+    input_ = input_.split(' ')
+    if 'list' in input_:
+        for num, port, desc, con in serial_ports():
+            print("[{}] {}: {} [{}]".format(num, port, desc, con))
+        return None
+    elif 'exit' in input_:
+        return 0
+    elif 'connect' in input_:
+        if len(input_) != 2:
+            print("connect takes exactly one positional arguement")
+            return 1
+        port = input_[-1]
+        cs.open(port)
+    elif 'disconnect' in input_:
+        cs.close()
+    elif 'home' in input_:
+        await move(home=True)
+    elif 'move' in input_:
+        axis = input_[input_.index('-a')+1]
+        dist = float(input_[input_.index('-d')+1])
+        try: 
+            input_.index('--abs')
+            await move(axis=axis, distance=dist, abs=True)
+        except ValueError:
+            await move(axis=axis, distance=dist, abs=False)
+    else:
+        print(f'Unrecognised command {input_}')
 
 
-@cli.command
-@click.option('--list/--no-list', default=False)
-@pass_app
-def port(app, list):
-    plist = serial_ports(app)
-    if list:
-        for num, port, desc, con in plist:
-            click.echo("[{}] {}: {} [{}]".format(num, port,
-                                                 desc, con))
+def main():
+    bindings = KeyBindings()
+
+    @bindings.add("c-w")
+    async def _(event):
+        try:
+            await move(axis="y", distance=0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    @bindings.add("c-s")
+    async def _(event):
+        try:
+            await move(axis="y", distance=-0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    @bindings.add("c-a")
+    async def _(event):
+        try:
+            await move(axis="x", distance=0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    @bindings.add("c-d")
+    async def _(event):
+        try:
+            await move(axis="x", distance=-0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    @bindings.add("c-q")
+    async def _(event):
+        try:
+            await move(axis="z", distance=0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    @bindings.add("c-e")
+    async def _(event):
+        try:
+            await move(axis="z", distance=-0.5)
+        except asyncio.CancelledError:
+            print("Prompt terminated before we completed.")
+
+    global cs
+    cs = CaliStage()
+    set_title('Robo Cali')
+    history = InMemoryHistory()
+    session = PromptSession(history=history, enable_history_search=True)
+    while True:
+        with patch_stdout():
+            arg = asyncio.run(parse(session.prompt("(rcali) $ ",
+                                                   key_bindings=bindings)))
+            if arg == 0:
+                break
+
+
+if __name__ == "__main__":
+    main()
 
