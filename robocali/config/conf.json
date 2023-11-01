@@ -1,20 +1,62 @@
 [
     {
-        "name": "port",
-        "val": "/dev/ttyUSB0",
-        "dtype": "str",
-        "unit": "n/a",
-        "desc": "port name"
-    },
-    {
-	"name": "axis_labels",
+        "name": "axis_labels",
         "val": {
-		"x": "62150",
-		"y": "62149",
-		"z": "62151"
-	},
+            "x": "62150",
+            "y": "62149",
+            "z": "62151"
+        },
         "dtype": "dict",
         "unit": "n/a",
         "desc": "axis serial numbers for x, y, and z"
+    },
+    {
+        "name": "small_move",
+        "val": 0.1,
+        "dtype": "float",
+        "unit": "mm",
+        "desc": "amount to move axes in small move"
+    },
+    {
+        "name": "big_move",
+        "val": 3.0,
+        "dtype": "float",
+        "unit": "mm",
+        "desc": "amount to move axes in small move"
+    },
+    {
+        "name": "scope_domain",
+        "val": 0.01,
+        "dtype": "float",
+        "unit": "seconds",
+        "desc": "time domain of scope for logging"
+    },
+    {
+        "name": "cali_axis",
+        "val": "y",
+        "dtype": "str",
+        "unit": "n/a",
+        "desc": "axis to calibrate along"
+    },
+    {
+        "name": "axis_limits",
+        "val": [
+            "149.49968512500016",
+            "17.999964000000016",
+            "0.1"
+        ],
+        "dtype": "list",
+        "unit": "millimetres",
+        "desc": "limit of cali axis extent in calibration (l1, l2, step)"
+    },
+    {
+        "name": "z_limit",
+        "val": [
+            "10",
+            "60"
+        ],
+        "dtype": "list",
+        "unit": "millimetres",
+        "desc": "limit of z axis extent in calibration"
     }
 ]
